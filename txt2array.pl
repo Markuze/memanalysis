@@ -6,10 +6,33 @@ use autodie;
 my $meta_str = '__meta_total';
 
 my $__fm = "mem.txt";
+my $__fc = "cpu.txt";
 my $event = "";
 
-sub cputxt2arr {
+sub cpu_arrline2hash {
+	# Children (1):Self (2):sys (3):usr (4):Command (5):Shared Object (6):Symbol (7)
+	my $line = shift;
+	my $hash = shift;
 
+	#key
+	my $symbol 	= ${$line}[7];
+
+	#value
+	my $cycles 	= ${$line}[0];
+	my $children 	= ${$line}[1];
+	my $self 	= ${$line}[2];
+
+	chop $self;
+	chop $children;
+
+	${$hash}{$symbol}{$meta_str}[3] += $cycles;
+	${$hash}{$symbol}{$meta_str}[4] += $children;
+	${$hash}{$symbol}{$meta_str}[5] += $self;
+
+	## Need same structure, as not to break sort
+	${$hash}{$meta_str}{$meta_str}[3] += $cycles;
+	${$hash}{$meta_str}{$meta_str}[4] += $children;
+	${$hash}{$meta_str}{$meta_str}[5] += $self;
 }
 
 sub mem_arrline2hash {
@@ -40,9 +63,33 @@ sub mem_arrline2hash {
 		${$hash}{$meta_str}{$meta_str}[1] += $weight;
 		${$hash}{$meta_str}{$meta_str}[2] ++;
 
+		unless (defined (${$hash}{$symbol}{$meta_str}[3])) {
+			${$hash}{$symbol}{$meta_str}[3] = 0;
+			${$hash}{$symbol}{$meta_str}[4] = 0;
+			${$hash}{$symbol}{$meta_str}[5] = 0;
+
+			${$hash}{$meta_str}{$meta_str}[3] = 0;
+			${$hash}{$meta_str}{$meta_str}[4] = 0;
+			${$hash}{$meta_str}{$meta_str}[5] = 0;
+		}
+
 }
 
-sub arr2hash {
+sub cpu_arr2hash {
+	my $arr = shift;
+	my $hash = shift;
+	my %hash = (); #TODO: Add option to receive hash from the outside.
+
+	$hash = \%hash unless (defined $hash);
+
+	foreach (@{$arr}) {
+		cpu_arrline2hash $_, $hash;
+	}
+	return $hash;
+}
+
+
+sub mem_arr2hash {
 	my $arr = shift;
 	my $hash = shift;
 	my %hash = (); #TODO: Add option to receive hash from the outside.
@@ -70,7 +117,7 @@ sub txt2arr_line {
 		$event = $1 if defined ($1);
 	}
 	# Get Key:
-	if ($line =~ /# Overhead/) {
+	if ($line =~ /# Overhead|# Children/) {
 		chomp $line;
 		my @line = split /\s{2,}/, $line;
 		my $i = 1;
@@ -115,18 +162,30 @@ my $arr  = text2arr $__fm;
 my $i = 0;
 
 
-my $hash = arr2hash $arr;
+my $hash = mem_arr2hash $arr;
+$arr  = text2arr $__fc;
+$hash = cpu_arr2hash $arr, $hash;
 
 sub dump_hash {
 	my $hash = shift;
-	my $sort_func =  sub {${$hash}{$b}{$meta_str}[2] <=> ${$hash}{$a}{$meta_str}[2]};
+	my $sort_func =  sub {
+				${$hash}{$b}{$meta_str}[5] <=> ${$hash}{$a}{$meta_str}[5]  # sort by self cycles
+
+				#${$hash}{$b}{$meta_str}[2] <=> ${$hash}{$a}{$meta_str}[2]; # sort by count
+				};
 
 	foreach my $sym (sort $sort_func  keys %{$hash}) {
 
 		next if ($sym eq $meta_str);
 		my $sym_hash = ${$hash}{$sym};
 		my $t_line = ${$hash}{$sym}{$meta_str};
-		printf "$sym : ${$t_line}[1], ${$t_line}[2], ${$t_line}[0]\n";
+
+		if  (defined(${$t_line}[1])) {
+			printf "$sym : ${$t_line}[1], ${$t_line}[2], ${$t_line}[0], ${t_line}[5]\n";
+		} else {
+			printf "$sym : ${t_line}[5], ${t_line}[4]\n", ;
+
+		}
 
 		foreach my $ev (keys %{$sym_hash}) {
 			next if ($ev eq $meta_str);
