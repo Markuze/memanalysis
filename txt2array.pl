@@ -7,7 +7,7 @@ my $meta_str = '__meta_total';
 
 my $__fm = "mem.txt";
 my $__fc = "cpu.txt";
-my $event = "";
+my $__event = "";
 
 ######################################## LIB FUNCS ##############################################
 # Add array of CPU entries into a hash.
@@ -20,7 +20,6 @@ my $__count = 2;
 my $__cycles = 3;
 my $__children = 4;
 my $__self = 5;
-
 
 sub cpu_arrline2hash {
 	my $line = shift;
@@ -37,12 +36,12 @@ sub cpu_arrline2hash {
 	chop $self;
 	chop $children;
 
-	${$hash}{$symbol}{$meta_str}[$__cycles] += $cycles;
+	${$hash}{$symbol}{$meta_str}[$__cycles] = $cycles;
 	${$hash}{$symbol}{$meta_str}[$__children] += $children;
 	${$hash}{$symbol}{$meta_str}[$__self] += $self;
 
 	## Need same structure, as not to break sort
-	${$hash}{$meta_str}{$meta_str}[$__cycles] += $cycles;
+	${$hash}{$meta_str}{$meta_str}[$__cycles] = $cycles;
 	${$hash}{$meta_str}{$meta_str}[$__children] += $children;
 	${$hash}{$meta_str}{$meta_str}[$__self] += $self;
 }
@@ -129,13 +128,16 @@ sub txt2arr_line {
 	if ($line =~ /# Samples/) {
 		$line =~ /Samples:\s+([\d+\w]+).*\s(\S+)\s*$/;
 		#printf "$1 > $2";
-		$event = $2;
+		$__event = $2;
+		printf "$__event\n";
 		return undef;
 	}
 	# Get cycles: (CPU Only)
 	if ($line =~ /# Event count/) {
 		$line =~ /\s(\d+)$/;
-		$event = $1 if defined ($1);
+		$__event = $1 if defined ($1);
+		printf "$__event\n";
+		return undef;
 	}
 	# Get Key: (CPU/Mem)
 	if ($line =~ /# Overhead|# Children/) {
@@ -157,7 +159,7 @@ sub txt2arr_line {
 	return undef unless defined $line[6];
 
 	#post processing:
-	$line[0] = $event;   # add event type to line
+	$line[0] = $__event;   # add event type to line
 	chomp $line[$#line]; #remove '\n' from last var
 
 	return (\@line);
@@ -192,12 +194,20 @@ sub dump_hash {
 		next if ($sym eq $meta_str);
 		my $sym_hash = ${$hash}{$sym};
 		my $t_line = ${$hash}{$sym}{$meta_str};
+		my $cycles = ${$t_line}[$__cycles]/100;
 
-		if  (defined(${$t_line}[1])) {
-			printf "$sym : ${$t_line}[1], ${$t_line}[2], ${$t_line}[0], ${$t_line}[5]\n";
+		next if (${$t_line}[$__children] == 0);
+
+		if  (defined(${$t_line}[$__weight])) {
+			printf "$sym : w:${$t_line}[$__weight], count: ${$t_line}[$__count],";
+			printf " oh:%.2f , self: ${$t_line}[$__self](%dK) ch: , ${$t_line}[$__children] (%dK)\n",
+					${$t_line}[$__overhead],
+					${$t_line}[$__self] * $cycles/1000,
+					${$t_line}[$__children] * $cycles/1000
+					;
 		} else {
-			printf "$sym : ${$t_line}[5], ${$t_line}[4], ${$t_line}[4]\n";
-
+			printf "$sym : self: ${$t_line}[$__self] (%dK), ${$t_line}[$__children] (%dK)\n",
+					${$t_line}[$__self] * $cycles/1000, ${$t_line}[$__children] * $cycles/1000;
 		}
 
 		foreach my $ev (keys %{$sym_hash}) {
