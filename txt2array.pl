@@ -7,19 +7,21 @@ my $meta_str = '__meta_total';
 
 my $__fm = "mem.txt";
 my $__fc = "cpu.txt";
-my $__event = "";
+my $__event = ""; # TODO: state?
+
+#TODO: Please turn into .pm file
 
 ######################################## LIB FUNCS ##############################################
 # Add array of CPU entries into a hash.
 #	Assumed array structure:
 #	# Children (1):Self (2):sys (3):usr (4):Command (5):Shared Object (6):Symbol (7)
 
-my $__overhead = 0;
-my $__weight = 1;
-my $__count = 2;
-my $__cycles = 3;
-my $__children = 4;
-my $__self = 5;
+my $__overhead 	= 0;
+my $__weight 	= 1;
+my $__count 	= 2;
+my $__cycles 	= 3;
+my $__children 	= 4;
+my $__self 	= 5;
 
 sub cpu_arrline2hash {
 	my $line = shift;
@@ -117,6 +119,7 @@ sub mem_arr2hash {
 	return $hash;
 }
 
+## Public
 # break a line from cpu/mem.txt file (cpu/mem.dat), into an array.
 # each line is parsed into an array of strings.
 # return: array of strings
@@ -165,6 +168,7 @@ sub txt2arr_line {
 	return (\@line);
 }
 
+## Public
 #loop over a cpu/mem.txt file, each line is paresed into an array by txt2arr_line
 #return: an array of arrays.
 sub text2arr {
@@ -182,6 +186,7 @@ sub text2arr {
 	return \@array;
 }
 
+## Public
 sub dump_hash {
 	my $hash = shift;
 	my $idx = $__self;
@@ -225,11 +230,10 @@ sub dump_hash {
 
 #################################################### Lib END
 
+#Lib usage
 my $arr  = text2arr $__fm;
-my $i = 0;
-
-
 my $hash = mem_arr2hash $arr;
+
 $arr  = text2arr $__fc;
 $hash = cpu_arr2hash $arr, $hash;
 
