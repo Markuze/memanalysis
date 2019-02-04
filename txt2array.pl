@@ -9,8 +9,20 @@ my $__fm = "mem.txt";
 my $__fc = "cpu.txt";
 my $event = "";
 
+######################################## LIB FUNCS ##############################################
+# Add array of CPU entries into a hash.
+#	Assumed array structure:
+#	# Children (1):Self (2):sys (3):usr (4):Command (5):Shared Object (6):Symbol (7)
+
+my $__overhead = 0;
+my $__weight = 1;
+my $__count = 2;
+my $__cycles = 3;
+my $__children = 4;
+my $__self = 5;
+
+
 sub cpu_arrline2hash {
-	# Children (1):Self (2):sys (3):usr (4):Command (5):Shared Object (6):Symbol (7)
 	my $line = shift;
 	my $hash = shift;
 
@@ -25,18 +37,20 @@ sub cpu_arrline2hash {
 	chop $self;
 	chop $children;
 
-	${$hash}{$symbol}{$meta_str}[3] += $cycles;
-	${$hash}{$symbol}{$meta_str}[4] += $children;
-	${$hash}{$symbol}{$meta_str}[5] += $self;
+	${$hash}{$symbol}{$meta_str}[$__cycles] += $cycles;
+	${$hash}{$symbol}{$meta_str}[$__children] += $children;
+	${$hash}{$symbol}{$meta_str}[$__self] += $self;
 
 	## Need same structure, as not to break sort
-	${$hash}{$meta_str}{$meta_str}[3] += $cycles;
-	${$hash}{$meta_str}{$meta_str}[4] += $children;
-	${$hash}{$meta_str}{$meta_str}[5] += $self;
+	${$hash}{$meta_str}{$meta_str}[$__cycles] += $cycles;
+	${$hash}{$meta_str}{$meta_str}[$__children] += $children;
+	${$hash}{$meta_str}{$meta_str}[$__self] += $self;
 }
 
+# Add array of CPU entries into a hash.
+#	Assumed array structure:
+#	# Overhead (1):sys (2):usr (3):Local Weight (4):Memory access (5):Symbol (6):Shared Object (7):Data Symbol (8):Data Object (9):Snoop (10):TLB access (11):Locked (12)
 sub mem_arrline2hash {
-	# Overhead (1):sys (2):usr (3):Local Weight (4):Memory access (5):Symbol (6):Shared Object (7):Data Symbol (8):Data Object (9):Snoop (10):TLB access (11):Locked (12)
 		my $line = shift;
 		my $hash = shift;
 		#key
@@ -50,31 +64,32 @@ sub mem_arrline2hash {
 		chop $oh;
 
 		#printf "$event: $symbol: $access > $oh: $weight\n";
-		${$hash}{$symbol}{$event}{$access}[0] += $oh;
-		${$hash}{$symbol}{$event}{$access}[1] += $weight;
-		${$hash}{$symbol}{$event}{$access}[2] ++; #count
+		${$hash}{$symbol}{$event}{$access}[$__overhead] += $oh;
+		${$hash}{$symbol}{$event}{$access}[$__weight] += $weight;
+		${$hash}{$symbol}{$event}{$access}[$__count] ++; #count
 
-		${$hash}{$symbol}{$meta_str}[0] += $oh;
-		${$hash}{$symbol}{$meta_str}[1] += $weight;
-		${$hash}{$symbol}{$meta_str}[2] ++;
+		${$hash}{$symbol}{$meta_str}[$__overhead] += $oh;
+		${$hash}{$symbol}{$meta_str}[$__weight] += $weight;
+		${$hash}{$symbol}{$meta_str}[$__count] ++;
 
 		## Need same structure, as not to break sort
-		${$hash}{$meta_str}{$meta_str}[0] += $oh;
-		${$hash}{$meta_str}{$meta_str}[1] += $weight;
-		${$hash}{$meta_str}{$meta_str}[2] ++;
+		${$hash}{$meta_str}{$meta_str}[$__overhead] += $oh;
+		${$hash}{$meta_str}{$meta_str}[$__weight] += $weight;
+		${$hash}{$meta_str}{$meta_str}[$__count] ++;
 
-		unless (defined (${$hash}{$symbol}{$meta_str}[3])) {
-			${$hash}{$symbol}{$meta_str}[3] = 0;
-			${$hash}{$symbol}{$meta_str}[4] = 0;
-			${$hash}{$symbol}{$meta_str}[5] = 0;
+		unless (defined (${$hash}{$symbol}{$meta_str}[$__cycles])) {
+			${$hash}{$symbol}{$meta_str}[$__cycles] = 0;
+			${$hash}{$symbol}{$meta_str}[$__children] = 0;
+			${$hash}{$symbol}{$meta_str}[$__self] = 0;
 
-			${$hash}{$meta_str}{$meta_str}[3] = 0;
-			${$hash}{$meta_str}{$meta_str}[4] = 0;
-			${$hash}{$meta_str}{$meta_str}[5] = 0;
+			${$hash}{$meta_str}{$meta_str}[$__cycles] = 0;
+			${$hash}{$meta_str}{$meta_str}[$__children] = 0;
+			${$hash}{$meta_str}{$meta_str}[$__self] = 0;
 		}
 
 }
 
+#A loop over an array of cpu entries (each element is an array of strings from a line in cpu.dat file)
 sub cpu_arr2hash {
 	my $arr = shift;
 	my $hash = shift;
@@ -88,7 +103,8 @@ sub cpu_arr2hash {
 	return $hash;
 }
 
-
+#A loop over an array of cpu entries (each element is an array of strings from a line in mem.dat file)
+#return: updated hash.
 sub mem_arr2hash {
 	my $arr = shift;
 	my $hash = shift;
@@ -102,21 +118,26 @@ sub mem_arr2hash {
 	return $hash;
 }
 
+# break a line from cpu/mem.txt file (cpu/mem.dat), into an array.
+# each line is parsed into an array of strings.
+# return: array of strings
 sub txt2arr_line {
 	my $line = shift;
 
-	#Get CPU event: line example: # Samples: 677K of event 'cpu/mem-loads/p'
+	#Get CPU event (Mem.dat Only): line example:
+	# Samples: 677K of event 'cpu/mem-loads/p'
 	if ($line =~ /# Samples/) {
 		$line =~ /Samples:\s+([\d+\w]+).*\s(\S+)\s*$/;
 		#printf "$1 > $2";
 		$event = $2;
 		return undef;
 	}
+	# Get cycles: (CPU Only)
 	if ($line =~ /# Event count/) {
 		$line =~ /\s(\d+)$/;
 		$event = $1 if defined ($1);
 	}
-	# Get Key:
+	# Get Key: (CPU/Mem)
 	if ($line =~ /# Overhead|# Children/) {
 		chomp $line;
 		my @line = split /\s{2,}/, $line;
@@ -142,6 +163,8 @@ sub txt2arr_line {
 	return (\@line);
 }
 
+#loop over a cpu/mem.txt file, each line is paresed into an array by txt2arr_line
+#return: an array of arrays.
 sub text2arr {
 	my $fm = shift;
 	my @array = ();
@@ -157,21 +180,11 @@ sub text2arr {
 	return \@array;
 }
 
-
-my $arr  = text2arr $__fm;
-my $i = 0;
-
-
-my $hash = mem_arr2hash $arr;
-$arr  = text2arr $__fc;
-$hash = cpu_arr2hash $arr, $hash;
-
 sub dump_hash {
 	my $hash = shift;
+	my $idx = $__self;
 	my $sort_func =  sub {
-				${$hash}{$b}{$meta_str}[5] <=> ${$hash}{$a}{$meta_str}[5]  # sort by self cycles
-
-				#${$hash}{$b}{$meta_str}[2] <=> ${$hash}{$a}{$meta_str}[2]; # sort by count
+				${$hash}{$b}{$meta_str}[$idx] <=> ${$hash}{$a}{$meta_str}[$idx]  # sort by self cycles
 				};
 
 	foreach my $sym (sort $sort_func  keys %{$hash}) {
@@ -181,9 +194,9 @@ sub dump_hash {
 		my $t_line = ${$hash}{$sym}{$meta_str};
 
 		if  (defined(${$t_line}[1])) {
-			printf "$sym : ${$t_line}[1], ${$t_line}[2], ${$t_line}[0], ${t_line}[5]\n";
+			printf "$sym : ${$t_line}[1], ${$t_line}[2], ${$t_line}[0], ${$t_line}[5]\n";
 		} else {
-			printf "$sym : ${t_line}[5], ${t_line}[4]\n", ;
+			printf "$sym : ${$t_line}[5], ${$t_line}[4], ${$t_line}[4]\n";
 
 		}
 
@@ -199,5 +212,15 @@ sub dump_hash {
 		}
 	}
 }
+
+#################################################### Lib END
+
+my $arr  = text2arr $__fm;
+my $i = 0;
+
+
+my $hash = mem_arr2hash $arr;
+$arr  = text2arr $__fc;
+$hash = cpu_arr2hash $arr, $hash;
 
 dump_hash $hash;
