@@ -2,6 +2,7 @@
 
 use strict;
 use autodie;
+use Number::Format  'format_number';
 
 my $meta_str = '__meta_total';
 
@@ -23,6 +24,11 @@ my $__cycles 	= 3;
 my $__children 	= 4;
 my $__self 	= 5;
 
+my $__count_s	= 0;
+my $__snoop_s	= 1;
+my $__tlb_s	= 2;
+my $__locked_s	= 3;
+
 sub cpu_arrline2hash {
 	my $line = shift;
 	my $hash = shift;
@@ -39,12 +45,12 @@ sub cpu_arrline2hash {
 	chop $children;
 
 	${$hash}{$symbol}{$meta_str}[$__cycles] = $cycles;
-	${$hash}{$symbol}{$meta_str}[$__children] += $children;
+	${$hash}{$symbol}{$meta_str}[$__children] = 0;
 	${$hash}{$symbol}{$meta_str}[$__self] += $self;
 
 	## Need same structure, as not to break sort
 	${$hash}{$meta_str}{$meta_str}[$__cycles] = $cycles;
-	${$hash}{$meta_str}{$meta_str}[$__children] += $children;
+	${$hash}{$meta_str}{$meta_str}[$__children] += 0;
 	${$hash}{$meta_str}{$meta_str}[$__self] += $self;
 }
 
@@ -90,6 +96,89 @@ sub mem_arrline2hash {
 
 }
 
+# Add array of CPU entries into a hash. collecting stats on Snooping, unique addr, Locked and TLB
+#	Assumed array structure:
+#	# Overhead (1):sys (2):usr (3):Local Weight (4):Memory access (5):Symbol (6):Shared Object (7):Data Symbol (8):Data Object (9):Snoop (10):TLB access (11):Locked (12)
+#$__count_s	= 0;
+#$__snoop_s	= 1;
+#$__tlb_s	= 2;
+#$__locked_s	= 3;
+sub mem_arrline2stats {
+		my $line = shift;
+		my $hash = shift;
+		#key
+		my $event 	= ${$line}[0];
+		my $symbol 	= ${$line}[8];
+		my $access 	= ${$line}[5];
+
+		#value
+		my $func 		= ${$line}[6];
+		my $snoop 		= ${$line}[10];
+		my $tlb 		= ${$line}[11];
+		my $locked 		= ${$line}[12];
+
+		#total measured
+		## Need same structure, as not to break sort
+		${$hash}{$meta_str}{$meta_str}{$meta_str}[$__count_s]{$meta_str} ++ unless (defined(${$hash}{$symbol})); #count unique addresses
+		${$hash}{$meta_str}{$meta_str}{$meta_str}[$__snoop_s]{$snoop} ++;
+		${$hash}{$meta_str}{$meta_str}{$meta_str}[$__tlb_s]{$tlb} ++;
+		${$hash}{$meta_str}{$meta_str}{$meta_str}[$__locked_s]{$locked} ++;
+
+		#printf "$event: $symbol: $access > $oh: $weight\n";
+		${$hash}{$symbol}{$event}{$access}[$__count_s]{$meta_str} ++;
+		${$hash}{$symbol}{$event}{$access}[$__count_s]{$func} ++;
+		${$hash}{$symbol}{$event}{$access}[$__snoop_s]{$meta_str} ++;
+		${$hash}{$symbol}{$event}{$access}[$__snoop_s]{$snoop} ++;
+		${$hash}{$symbol}{$event}{$access}[$__tlb_s]{$meta_str} ++;
+		${$hash}{$symbol}{$event}{$access}[$__tlb_s]{$tlb} ++;
+		${$hash}{$symbol}{$event}{$access}[$__locked_s]{$meta_str} ++;
+		${$hash}{$symbol}{$event}{$access}[$__locked_s]{$locked} ++;
+
+		#total per symbol
+		${$hash}{$symbol}{$meta_str}{$meta_str}[$__count_s]{$meta_str} ++;
+		${$hash}{$symbol}{$meta_str}{$meta_str}[$__count_s]{$func} ++;
+		${$hash}{$symbol}{$meta_str}{$meta_str}[$__snoop_s]{$snoop} ++;
+		${$hash}{$symbol}{$meta_str}{$meta_str}[$__tlb_s]{$tlb} ++;
+		${$hash}{$symbol}{$meta_str}{$meta_str}[$__locked_s]{$locked} ++;
+
+}
+sub  stat_total_count {
+	my $hash = shift;
+	my $a	= shift;
+	return ${$hash}{$b}{$meta_str}{$meta_str}[$__count_s]{$meta_str};
+}
+#
+# Public
+sub dump_stats {
+	my $hash = shift;
+	my $arr = ${$hash}{$meta_str}{$meta_str}{$meta_str};
+	my $idx = $__self;
+
+
+	foreach my $h (@{$arr}) {
+		printf "----------------\n";
+		foreach my $stat (sort {${$h}{$a} <=> ${$h}{$b}} keys %{$h}) {
+			printf " $stat: ${$h}{$stat}\n";
+		}
+	}
+}
+
+
+#TODO: unify all loop functions
+#A loop over an array of cpu entries (each element is an array of strings from a line in mem.dat file)
+#return: updated hash.
+sub mem_arr2stats {
+	my $arr = shift;
+	my $hash = shift;
+	my %hash = (); #TODO: Add option to receive hash from the outside.
+
+	$hash = \%hash unless (defined $hash);
+
+	foreach (@{$arr}) {
+		mem_arrline2stats $_, $hash;
+	}
+	return $hash;
+}
 #A loop over an array of cpu entries (each element is an array of strings from a line in cpu.dat file)
 sub cpu_arr2hash {
 	my $arr = shift;
@@ -139,7 +228,7 @@ sub txt2arr_line {
 	if ($line =~ /# Event count/) {
 		$line =~ /\s(\d+)$/;
 		$__event = $1 if defined ($1);
-		printf "$__event\n";
+		printf " %s\n", format_number($__event);
 		return undef;
 	}
 	# Get Key: (CPU/Mem)
@@ -196,7 +285,7 @@ sub dump_hash {
 
 	foreach my $sym (sort $sort_func  keys %{$hash}) {
 
-		next if ($sym eq $meta_str);
+		#next if ($sym eq $meta_str);
 		my $sym_hash = ${$hash}{$sym};
 		my $t_line = ${$hash}{$sym}{$meta_str};
 		my $cycles = ${$t_line}[$__cycles]/100;
@@ -205,14 +294,15 @@ sub dump_hash {
 
 		if  (defined(${$t_line}[$__weight])) {
 			printf "$sym : w:${$t_line}[$__weight], count: ${$t_line}[$__count],";
-			printf " oh:%.2f , self: ${$t_line}[$__self](%dK) ch: , ${$t_line}[$__children] (%dK)\n",
+			printf " oh:%.2f , self: ${$t_line}[$__self](%sK) ch: , ${$t_line}[$__children] (%sK)\n",
 					${$t_line}[$__overhead],
-					${$t_line}[$__self] * $cycles/1000,
-					${$t_line}[$__children] * $cycles/1000
+					format_number(${$t_line}[$__self] * $cycles/1000),
+					format_number(${$t_line}[$__children] * $cycles/1000)
 					;
 		} else {
-			printf "$sym : self: ${$t_line}[$__self] (%dK), ${$t_line}[$__children] (%dK)\n",
-					${$t_line}[$__self] * $cycles/1000, ${$t_line}[$__children] * $cycles/1000;
+			printf "$sym : self: ${$t_line}[$__self] (%sK), ${$t_line}[$__children] (%sK)\n",
+					format_number(${$t_line}[$__self] * $cycles/1000),
+					format_number(${$t_line}[$__children] * $cycles/1000);
 		}
 
 		foreach my $ev (keys %{$sym_hash}) {
@@ -220,9 +310,9 @@ sub dump_hash {
 
 			my $ev_hash = ${$sym_hash}{$ev};
 
-			foreach my $acc (keys%{$ev_hash}) {
+			foreach my $acc ( sort {${$ev_hash}{$b}[$__count] <=> ${$ev_hash}{$a}[$__count]} keys%{$ev_hash}) {
 				my $line = ${$ev_hash}{$acc};
-				printf "\t$sym : $ev: $acc: ${$line}[1], ${$line}[2], ${$line}[0]\n";
+				printf "\t$sym : $ev: $acc: ${$line}[$__count], ${$line}[$__weight], ${$line}[$__overhead]\n";
 			}
 		}
 	}
@@ -232,8 +322,11 @@ sub dump_hash {
 
 #Lib usage
 my $arr  = text2arr $__fm;
-my $hash = mem_arr2hash $arr;
+my $stats = mem_arr2stats $arr;
 
+dump_stats $stats;
+
+my $hash = mem_arr2hash $arr;
 $arr  = text2arr $__fc;
 $hash = cpu_arr2hash $arr, $hash;
 
