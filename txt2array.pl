@@ -119,7 +119,8 @@ sub mem_arrline2stats {
 
 		#total measured
 		## Need same structure, as not to break sort
-		${$hash}{$meta_str}{$meta_str}{$meta_str}[$__count_s]{$meta_str} ++ unless (defined(${$hash}{$symbol})); #count unique addresses
+		${$hash}{$meta_str}{$meta_str}{$meta_str}[$__count_s]{$meta_str} ++;
+		${$hash}{$meta_str}{$meta_str}{$meta_str}[$__count_s]{'unique'} ++ unless (defined(${$hash}{$symbol})); #count unique addresses
 		${$hash}{$meta_str}{$meta_str}{$meta_str}[$__snoop_s]{$snoop} ++;
 		${$hash}{$meta_str}{$meta_str}{$meta_str}[$__tlb_s]{$tlb} ++;
 		${$hash}{$meta_str}{$meta_str}{$meta_str}[$__locked_s]{$locked} ++;
@@ -154,12 +155,16 @@ sub dump_stats {
 	my $arr = ${$hash}{$meta_str}{$meta_str}{$meta_str};
 	my $idx = $__self;
 
+	my $total = ${$hash}{$meta_str}{$meta_str}{$meta_str}[$__count_s]{$meta_str};
 
 	foreach my $h (@{$arr}) {
 		printf "----------------\n";
+		my $sanity = 0;
 		foreach my $stat (sort {${$h}{$a} <=> ${$h}{$b}} keys %{$h}) {
-			printf " $stat: ${$h}{$stat}\n";
+			printf " $stat: ${$h}{$stat} (%.2f)\n", (100 * ${$h}{$stat})/$total;
+			$sanity += ${$h}{$stat}/$total;
 		}
+		printf "============ $sanity ==========\n";
 	}
 }
 
@@ -290,7 +295,7 @@ sub dump_hash {
 		my $t_line = ${$hash}{$sym}{$meta_str};
 		my $cycles = ${$t_line}[$__cycles]/100;
 
-		next if (${$t_line}[$__children] == 0);
+		next if (${$t_line}[$__self] == 0);
 
 		if  (defined(${$t_line}[$__weight])) {
 			printf "$sym : w:${$t_line}[$__weight], count: ${$t_line}[$__count],";
