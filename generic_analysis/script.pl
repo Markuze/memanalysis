@@ -6,6 +6,8 @@ use autodie;
 use Getopt::Std;
 use Number::Format  'format_number';
 # Overhead Samples  Local Weight  Memory access Symbol Shared Object  Data Symbol Data Object Snoop TLB access Locked
+# Overhead sys usr  Local Weight  Memory access Symbol Shared Object  Data Symbol Data Object Snoop TLB access Locked
+
 
 my $meta_str = '__meta_total';
 my %opts = ();
@@ -13,8 +15,8 @@ my %opts = ();
 my $__oh = 1;
 my $__samples = 2;
 my $__weight = 2;
-my $__access = 4;
-my $__symbol = 5;
+my $__access = 6;
+my $__symbol = 7;
 
 my $__total = 0;
 my $__cutoff = 1;
@@ -81,7 +83,7 @@ foreach (<$fh>) {
 	next if /^#/;
 	next if /^\s*$/;
 	my @line = split /\s{2,}/;
-	die "$_" unless ($#line > 0);
+	next unless ($#line > 4);
 
 	chop $line[$__oh];
 	$symbols{$line[$__symbol]}[$__total] += $line[$__oh];#$line[$__samples] * $line[$__weight];

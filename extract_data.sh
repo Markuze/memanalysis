@@ -8,7 +8,7 @@ IRQ_CORE=8
 [ -z "$CPU" ] && CPU='cpu.data'
 [ -z "$MEM" ] && MEM='mem.data'
 
-VMLINUX="-k /homes/markuze/copy/vmlinux"
+#VMLINUX="-k /homes/markuze/copy/vmlinux"
 
 sudo $perf report $CORE -i $CPU $VMLINUX --show-cpu-utilization --stdio		> cpu.txt
 sudo $perf report $CORE -i $MEM $VMLINUX --show-cpu-utilization --stdio --mem-mode > mem.txt
