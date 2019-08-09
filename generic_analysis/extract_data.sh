@@ -1,6 +1,7 @@
 HOME=/homes/markuze
 perf=/homes/markuze/copy/tools/perf/perf
 perf=/homes/borispi/stable-4.14.110-debug/tools/perf/perf
+#perf=/tmp/perf
 
 CORE=""
 CORE="-C 0"
@@ -17,6 +18,10 @@ for file in cpu*data; do
 	name="${file%.*}"
 	echo "$file :$name"
 	sudo $perf report $CORE -i $file $VMLINUX --show-cpu-utilization --no-child --stdio		> $name.txt
+	sudo $perf report $CORE -i $file $VMLINUX --show-cpu-utilization --stdio		> $name.text
+	pkts=`grep -i "total_tx_packets:" net_$name.txt|cut -d: -f2`
+	echo "./breakdown.pl -f $name.txt -p $pkts"
+	./breakdown.pl -f $name.txt -p $pkts > ./$name.br 2>/dev/null
 done
 
 for file in mem*data; do
@@ -24,8 +29,6 @@ for file in mem*data; do
 	name="${file%.*}"
 	echo "$file :$name"
 	sudo $perf report $CORE -i $file $VMLINUX --show-cpu-utilization --no-child --stdio --mem-mode	> $name.txt
+	sudo $perf report $CORE -i $file $VMLINUX --show-cpu-utilization --stdio --mem-mode	> $name.text
 done
-#sudo $perf report $CORE -i $CPU $VMLINUX --show-cpu-utilization --stdio	--no-child	> cpu_n.txt
-#sudo $perf report -C $IRQ_CORE -i $CPU --show-cpu-utilization --stdio		> txt
-#sudo $perf report -C $CORE -i $1 --show-cpu-utilization --stdio --no-child	> `uname -r`_nochild_core_$CORE.txt
-#sudo $perf report -C $CORE -i $1 --show-cpu-utilization --stdio --no-child	> `uname -r`_nochild_core_$CORE.txt
+

@@ -14,9 +14,9 @@ my %opts = ();
 
 my $__oh = 1;
 my $__samples = 2;
-my $__weight = 2;
-my $__access = 6;
-my $__symbol = 7;
+my $__weight = 4;
+my $__access = 5;
+my $__symbol = 6;
 
 my $__total = 0;
 my $__cutoff = 1;
@@ -38,34 +38,24 @@ my @events;
 push @events, 'Total';
 
 sub show_stats {
-	my ($symbols, $accesses) = @_;
+	my ($hash, $cutoff) = @_;
 
-	foreach (sort {${$symbols}{$b}[$__total] <=> ${$symbols}{$a}[$__total]} keys (%{$symbols})) {
-		#last if (${$symbols}{$_}[$__total] < $__cutoff);
-		next unless /mlx5e/;
+	foreach (sort {${$hash}{$b}[$__total] <=> ${$hash}{$a}[$__total]} keys (%{$hash})) {
+		if (defined $cutoff) {
+			last if (${$hash}{$_}[$__total] < $__cutoff);
+		}
+		#next unless /mlx5e/;
 		my $i = 0;
 		printf "%-30s = ", $_;
 		foreach my $event (@events) {
-			my $num = format_number ${$symbols}{$_}[$i++];
+			my $orig = ${$hash}{$_}[$i++];
+			my $num = defined $orig ? format_number $orig: 0 ;
 			$event =~ /cpu\/([\w-]+)/;
 			$event = $1 if defined $1;
 			printf "%-10s: %-5.2f ", $event, $num;
 		}
 		printf "\n";
 	}
-
-	foreach (sort {${$accesses}{$b}[$__total] <=> ${$accesses}{$a}[$__total]} keys (%{$accesses})) {
-		my $i = 0;
-		printf "%-30s = ", $_;
-		foreach my $event (@events) {
-			my $num = format_number ${$accesses}{$_}[$i++];
-			$event =~ /cpu\/([\w-]+)/;
-			$event = $1 if defined $1;
-			printf "%-10s: %-5.2f ", $event, $num;
-		}
-		printf "\n";
-	}
-
 }
 
 sub new_events {
@@ -91,6 +81,7 @@ foreach (<$fh>) {
 
 	$accesses{$line[$__access]}[$__total] += $line[$__oh];#$line[$__samples] * $line[$__weight];
 	$accesses{$line[$__access]}[$#events] += $line[$__oh];#$line[$__samples] * $line[$__weight];
+
 	#printf "$line[$__symbol] = $line[$__oh]\n";
 	#print $_;
 	#my $line = join(',',@line);
@@ -99,4 +90,11 @@ foreach (<$fh>) {
 }
 close $fh;
 
-show_stats \%symbols, \%accesses;
+#sub filter {
+#	my $hash, $entry = @_;
+#}
+#$ref = \&subroutine;
+#$ref->(@args);
+
+show_stats \%symbols, 1;
+show_stats \%accesses;

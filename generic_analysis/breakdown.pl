@@ -35,8 +35,12 @@ my $val;
 while(<$fh>) {
 	get_events $_ if /Event/;
 	$val = $1 if /^\s+([\d\.]+)%/;
-	printf "%.2f",($val * $cpp/100) if defined $val;
-	print "$_" if defined $val;;
+	if (defined $val) {
+		if ($val > 3 or /mlx5/) {
+			printf "%.2f",($val * $cpp/100);
+			print "$_";
+		}
+	}
 	undef $val;
 }
 
